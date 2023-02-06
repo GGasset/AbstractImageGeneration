@@ -17,7 +17,8 @@ def main():
     diffusions_per_image = 50
     std = 255. / diffusions_per_image
     X, Y = generate_training_data(images, std, diffusions_per_image)
-    model = generate_fit_model
+    model = generate_fit_model(X, Y)
+    model.save('./nn.hdf5')
     
 
 def get_boolean_input(prompt: str) -> bool:
