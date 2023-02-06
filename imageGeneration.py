@@ -19,10 +19,9 @@ def main():
     global grayscale
 
     paths = get_image_paths('./images/')
-    print(paths.head())
     img = proccess_path(paths[0])
     images = paths.agg(proccess_path)
-    print(type(images))    
+
     
 
 def get_boolean_input(prompt: str) -> bool:
@@ -70,7 +69,20 @@ def AddGaussianNoise(img: tf.Tensor, std: float) -> tf.Tensor:
     output = GetGaussianNoise(img, std, shape)
     return output
 
-#def GetTrainingData()
+def GenerateTrainingData(images: pd.Series[np.ndarray], std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
+    X = []
+    Y = []
+    for img in images:
+        diffusions = []
+        diffusions.append(img)
+        for i in range(diffusion_count - 1):
+            diffusions.append(AddGaussianNoise(diffusions[i], std))
+            X.append(diffusions[i])
+            Y.append(diffusions[i + 1])
+
+    X = np.array(X, dtype=int)
+    Y = np.array(Y, dtype=int)
+    return (X, Y)
 
 if __name__ == '__main__':
     main()
