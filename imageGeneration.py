@@ -67,7 +67,7 @@ def AddGaussianNoise(img: tf.Tensor, std: float) -> tf.Tensor:
     output = GetGaussianNoise(img, std, shape)
     return output
 
-def generate_training_data(images: pd.Series[np.ndarray], std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
+def generate_training_data(images: pd.Series, std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
     X = []
     Y = []
     for img in images:
@@ -82,7 +82,7 @@ def generate_training_data(images: pd.Series[np.ndarray], std: float, diffusion_
     Y = np.array(Y, dtype=int)
     return (X, Y)
 
-def generate_fit_model(X: np.ndarray[tf.Tensor], Y: np.ndarray[tf.Tensor]) -> tf.keras.models.Sequential:
+def generate_fit_model(X: np.ndarray, Y: np.ndarray) -> tf.keras.models.Sequential:
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Rescaling(1.0/255))
     model.add(tf.keras.layers.Conv2D(2, resolution, input_shape=rgb_image_shape))
