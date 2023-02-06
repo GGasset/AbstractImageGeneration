@@ -6,22 +6,18 @@ import matplotlib.pyplot as plt
 from celluloid import Camera
 from random import random
 
-global grayscale
-grayscale = None
 
 sqrt_resolution = 24
 resolution = (sqrt_resolution, sqrt_resolution)
-
-grayscale_image_shape = (sqrt_resolution, sqrt_resolution, 1)
 rgb_image_shape = (sqrt_resolution, sqrt_resolution, 3)
 
 def main():
-    global grayscale
-
     paths = get_image_paths('./images/')
-    img = proccess_path(paths[0])
     images = paths.agg(proccess_path)
-
+    diffusions_per_image = 50
+    std = 255. / diffusions_per_image
+    X, Y = generate_training_data(images, std, diffusions_per_image)
+    model = generate_fit_model
     
 
 def get_boolean_input(prompt: str) -> bool:
@@ -58,9 +54,10 @@ def proccess_path(path: str) -> tf.Tensor:
 def img_to_numpy(img: tf.Tensor):
     return img.numpy().astype('uint8')
 
-def GetGaussianNoise(mean: tf.Tensor | np.ndarray | float, std: float, shape: tuple) -> tf.Tensor:
+def GetGaussianNoise(mean: tf.Tensor | np.ndarray | float, std: float, shape: tuple, dtype: str = 'uint8') -> tf.Tensor:
     mean = np.zeros(shape) + mean
     noise = np.random.normal(mean, std)
+    noise = noise.astype(dtype)
     noise = tf.convert_to_tensor(noise, float)
     return noise
 
@@ -69,7 +66,7 @@ def AddGaussianNoise(img: tf.Tensor, std: float) -> tf.Tensor:
     output = GetGaussianNoise(img, std, shape)
     return output
 
-def GenerateTrainingData(images: pd.Series[np.ndarray], std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
+def generate_training_data(images: pd.Series[np.ndarray], std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
     X = []
     Y = []
     for img in images:
@@ -83,6 +80,20 @@ def GenerateTrainingData(images: pd.Series[np.ndarray], std: float, diffusion_co
     X = np.array(X, dtype=int)
     Y = np.array(Y, dtype=int)
     return (X, Y)
+
+def generate_fit_model(X: np.ndarray[tf.Tensor], Y: np.ndarray[tf.Tensor]) -> tf.keras.models.Sequential:
+    model = tf.keras.models.Sequential()
+    model.add(tf.keras.layers.Rescaling(1.0/255))
+    model.add(tf.keras.layers.Conv2D(2, resolution, input_shape=rgb_image_shape))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Conv2D(2, (24, 34)))
+    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Rescaling(255.0))
+
+    model.compile(tf.keras.optimizers.Nadam, loss=tf.keras.losses.MeanSquaredError)
+
+    model.fit(x=X, y=Y, batch_size=8, epochs=50, use_multiprocessing=True)
+    return model
 
 if __name__ == '__main__':
     main()
