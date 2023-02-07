@@ -176,7 +176,6 @@ def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: 
 def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, img: tf.Tensor = None, counter: int = 0) -> np.ndarray:
     global diffusions_per_image
 
-    output = None
     if img == None:
         img = GetGaussianNoise(255. / 2, 255. / 6 / 2, single_rgb_image_shape)
         counter += 1
@@ -185,13 +184,13 @@ def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, im
     counter += 1
 
     if return_as_tensor:
-        img = tf.convert_to_tensor(output)
+        img = tf.convert_to_tensor(img)
 
     is_final_output = counter >= diffusions_per_image
     is_equal_or_before_second_to_last_output = counter + 1 <= diffusions_per_image
     return_as_tensor = not is_final_output
     if is_final_output:
-        return output
+        return img
     else:
         return generate_image(model, return_as_tensor=is_equal_or_before_second_to_last_output, img=img, counter=counter)
 
