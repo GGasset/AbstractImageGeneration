@@ -4,22 +4,62 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from celluloid import Camera
-from random import random
 
 
 sqrt_resolution = 24
 resolution = (sqrt_resolution, sqrt_resolution)
 rgb_image_shape = (sqrt_resolution, sqrt_resolution, 3)
+single_rgb_image_shape = (1, sqrt_resolution, sqrt_resolution, 3)
+rgb_pixel_count = sqrt_resolution * sqrt_resolution * 3
+
+global model_path
+global is_nn_saved
 
 def main():
+    global model_path, is_nn_saved
+    model_path = './nn.hdf5'
+
+    while True:
+        is_nn_saved = os.path.isfile(model_path)
+        
+        first_prompt = 'Do you want to continue with the saved nn or you want to create a new one one?'
+        if is_nn_saved:
+            first_prompt += ' (You will loose the saved network)'
+        if is_nn_saved and get_boolean_input(first_prompt):
+            if get_boolean_input('Do you want to show an image from the nn?'):
+                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn\'s images as a .gif?'), epochs=get_input_int('How many images do you want to generate'))
+            else:
+                train(model_path, epochs=get_input_int('On how many epochs do you want to train the exiting network?'))
+        else:
+            train()
+
+def show_generated_images(save_instead_of_displaying: bool = True, img_count: int = 1):
+    model = generate_model(model_path)
+
+def train(model_path: str = None, epochs: int = 12) -> None:
+    print('Getting paths...')
     paths = get_image_paths('./images/')
+    print('Gathering images...')
     images = paths.agg(proccess_path)
+    print('Generating training data...')
     diffusions_per_image = 50
     std = 255. / diffusions_per_image
     X, Y = generate_training_data(images, std, diffusions_per_image)
-    model = generate_fit_model(X, Y)
+    print('Generating model...')
+    model = generate_model(model_path)
+    print('Fitting model..')
+    model = fit_model(model, X, Y, epochs)
+    print('Saving model...')
     model.save('./nn.hdf5')
-    
+
+def get_input_int(prompt: str) -> int:
+    while True:
+        print(prompt)
+        try:
+            output = int(input())
+            return output
+        except:
+            pass
 
 def get_boolean_input(prompt: str) -> bool:
     accepted_answers = ['yes', 'no', 'y', 'n', '1', '0']
@@ -44,7 +84,6 @@ def get_image_paths(folder_path: str) -> pd.DataFrame:
 
 def proccess_path(path: str) -> tf.Tensor:
     def decode_img(img) -> tf.Tensor:
-        global channels
         img = tf.io.decode_jpeg(img, channels=3)
         return tf.image.resize(img, resolution)
     
@@ -67,34 +106,68 @@ def AddGaussianNoise(img: tf.Tensor, std: float) -> tf.Tensor:
     output = GetGaussianNoise(img, std, shape)
     return output
 
-def generate_training_data(images: pd.Series, std: float, diffusion_count: int) -> tuple[np.ndarray, np.ndarray]:
-    X = []
-    Y = []
-    for img in images:
+def get_training_data_shape(images: pd.Series, diffusion_count: int) -> tuple[int, int, int, int]:
+    return (len(images) * (diffusion_count - 1), sqrt_resolution, sqrt_resolution, 3)
+
+def generate_training_data(images: pd.Series, std: float, diffusion_count: int, dtype: str = 'uint8') -> tuple[np.ndarray, np.ndarray]:
+    data_shape = get_training_data_shape(images, diffusion_count)
+    X = np.ndarray(data_shape)
+    Y = np.ndarray(data_shape)
+    counter = 0
+    for i, img in enumerate(images):
         diffusions = []
         diffusions.append(img)
-        for i in range(diffusion_count - 1):
-            diffusions.append(AddGaussianNoise(diffusions[i], std))
-            X.append(diffusions[i])
-            Y.append(diffusions[i + 1])
+        for j in range(diffusion_count - 1):
+            diffusions.append(AddGaussianNoise(diffusions[j], std))
+            X[counter] = diffusions[j + 1]
+            Y[counter] = diffusions[j]
+            counter += 1
 
-    X = np.array(X, dtype=int)
-    Y = np.array(Y, dtype=int)
+    X = X.astype(dtype)
+    Y = Y.astype(dtype)
     return (X, Y)
 
-def generate_fit_model(X: np.ndarray, Y: np.ndarray) -> tf.keras.models.Sequential:
+def generate_model(path: str = None):
     model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Rescaling(1.0/255))
-    model.add(tf.keras.layers.Conv2D(2, resolution, input_shape=rgb_image_shape))
-    model.add(tf.keras.layers.MaxPooling2D())
-    model.add(tf.keras.layers.Conv2D(2, (24, 34)))
-    model.add(tf.keras.layers.MaxPooling2D())
+    model.add(tf.keras.layers.Rescaling(1.0/255, input_shape=rgb_image_shape))
+    model.add(tf.keras.layers.Flatten())
+    model.add(tf.keras.layers.Dense(rgb_pixel_count))
+    model.add(tf.keras.layers.Dense(300))
+    model.add(tf.keras.layers.Dense(350))
+    model.add(tf.keras.layers.Dense(400))
+    model.add(tf.keras.layers.Dense(rgb_pixel_count))
+    model.add(tf.keras.layers.Reshape(rgb_image_shape))
     model.add(tf.keras.layers.Rescaling(255.0))
 
-    model.compile(tf.keras.optimizers.Nadam, loss=tf.keras.losses.MeanSquaredError)
+    if path:
+        model.load_weights(path)
 
-    model.fit(x=X, y=Y, batch_size=8, epochs=50, use_multiprocessing=True)
+    model.compile(optimizer='Nadam', loss=tf.keras.losses.MeanSquaredError())
+
+    print(model.summary())
     return model
+
+
+def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: int = 10) -> tf.keras.models.Sequential:
+    model.fit(x=X, y=Y, batch_size=8, epochs=epochs, use_multiprocessing=True)
+    return model
+
+def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, img: tf.Tensor = None) -> np.ndarray:
+    if img == None:
+        img = GetGaussianNoise(255. / 2, 255. / 6 / 2, single_rgb_image_shape)
+    output = model.predict(img)
+    if return_as_tensor:
+        return tf.convert_to_tensor(output)
+    return output
+
+def display_img(img: tf.Tensor | np.ndarray, title: str = ''):
+    if  type(img) == tf.Tensor:
+        img = img_to_numpy(img)
+    img = img.reshape(rgb_image_shape)
+    plt.title(title)
+    plt.imshow(img)
+    plt.show()
+    plt.clf()
 
 if __name__ == '__main__':
     main()
