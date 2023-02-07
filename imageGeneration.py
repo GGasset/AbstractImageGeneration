@@ -26,12 +26,12 @@ def main():
     while True:
         is_nn_saved = os.path.isfile(model_path)
         
-        first_prompt = 'Do you want to continue with the saved nn or you want to create a new one one?'
+        first_prompt = 'Do you want to continue with the saved nn?'
         if is_nn_saved:
-            first_prompt += ' (You will loose the saved network)'
+            first_prompt += ' (else you will loose the saved network)'
         if is_nn_saved and get_boolean_input(first_prompt):
             if get_boolean_input('Do you want to show an image from the nn?'):
-                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn\'s images as a .gif?'), epochs=get_input_int('How many images do you want to generate'))
+                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn\'s images as a .gif?'), img_count=get_input_int('How many images do you want to generate'))
             else:
                 train(model_path, epochs=get_input_int('On how many epochs do you want to train the exiting network?'))
         else:
