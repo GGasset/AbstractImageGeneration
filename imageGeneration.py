@@ -14,8 +14,12 @@ rgb_pixel_count = sqrt_resolution * sqrt_resolution * 3
 
 global model_path
 global is_nn_saved
+global diffusions_per_image
 
 def main():
+    global diffusions_per_image
+    diffusions_per_image = 50
+
     global model_path, is_nn_saved
     model_path = './nn.hdf5'
 
@@ -34,15 +38,30 @@ def main():
             train()
 
 def show_generated_images(save_instead_of_displaying: bool = True, img_count: int = 1):
+    global model_path
     model = generate_model(model_path)
+    fig = plt.figure()
+    camera = Camera(fig)
+    for i in range(img_count):
+        generated = generate_image(model)
+        plt.imshow(generated)
+        if save_instead_of_displaying:
+            camera.snap()
+        else:
+            plt.show()
+            plt.clf()
+    if save_instead_of_displaying:
+        animation = camera.animate()
+        animation.save('./GeneratedImages.gif')
 
 def train(model_path: str = None, epochs: int = 12) -> None:
+    global diffusions_per_image
+
     print('Getting paths...')
     paths = get_image_paths('./images/')
     print('Gathering images...')
     images = paths.agg(proccess_path)
     print('Generating training data...')
-    diffusions_per_image = 50
     std = 255. / diffusions_per_image
     X, Y = generate_training_data(images, std, diffusions_per_image)
     print('Generating model...')
@@ -128,6 +147,7 @@ def generate_training_data(images: pd.Series, std: float, diffusion_count: int, 
     return (X, Y)
 
 def generate_model(path: str = None):
+    print('Generating model...')
     model = tf.keras.models.Sequential()
     model.add(tf.keras.layers.Rescaling(1.0/255, input_shape=rgb_image_shape))
     model.add(tf.keras.layers.Flatten())
@@ -140,6 +160,7 @@ def generate_model(path: str = None):
     model.add(tf.keras.layers.Rescaling(255.0))
 
     if path:
+        print('Getting values from disk...')
         model.load_weights(path)
 
     model.compile(optimizer='Nadam', loss=tf.keras.losses.MeanSquaredError())
@@ -152,13 +173,27 @@ def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: 
     model.fit(x=X, y=Y, batch_size=8, epochs=epochs, use_multiprocessing=True)
     return model
 
-def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, img: tf.Tensor = None) -> np.ndarray:
+def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, img: tf.Tensor = None, counter: int = 0) -> np.ndarray:
+    global diffusions_per_image
+
+    output = None
     if img == None:
         img = GetGaussianNoise(255. / 2, 255. / 6 / 2, single_rgb_image_shape)
-    output = model.predict(img)
+        counter += 1
+
+    img = model.predict(img)
+    counter += 1
+
     if return_as_tensor:
-        return tf.convert_to_tensor(output)
-    return output
+        img = tf.convert_to_tensor(output)
+
+    is_final_output = counter >= diffusions_per_image
+    is_equal_or_before_second_to_last_output = counter + 1 <= diffusions_per_image
+    return_as_tensor = not is_final_output
+    if is_final_output:
+        return output
+    else:
+        return generate_image(model, return_as_tensor=is_equal_or_before_second_to_last_output, img=img, counter=counter)
 
 def display_img(img: tf.Tensor | np.ndarray, title: str = ''):
     if  type(img) == tf.Tensor:
