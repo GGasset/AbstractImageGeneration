@@ -23,6 +23,8 @@ def main():
     global model_path, is_nn_saved
     model_path = './nn.hdf5'
 
+    epoch_prompt = 'On how many epochs do you want to train the network?'
+
     while True:
         is_nn_saved = os.path.isfile(model_path)
 
@@ -33,9 +35,9 @@ def main():
             if get_boolean_input('Do you want to show (an) image/s from the nn instead of training the nn?'):
                 show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
             else:
-                train(model_path, epochs=get_input_int('On how many epochs do you want to train the exiting network?'))
+                train(model_path, epochs=get_input_int(epoch_prompt))
         else:
-            train()
+            train(epochs=get_input_int(epoch_prompt))
 
 def show_generated_images(save_instead_of_displaying: bool = True, img_count: int = 1):
     global model_path
