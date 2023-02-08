@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from celluloid import Camera
 
 
-sqrt_resolution = 24
+sqrt_resolution = 32
 resolution = (sqrt_resolution, sqrt_resolution)
 rgb_image_shape = (sqrt_resolution, sqrt_resolution, 3)
 single_rgb_image_shape = (1, sqrt_resolution, sqrt_resolution, 3)
@@ -149,15 +149,15 @@ def generate_training_data(images: pd.Series, std: float, diffusion_count: int, 
 def generate_model(path: str = None):
     print('Generating model...')
     model = tf.keras.models.Sequential()
-    model.add(tf.keras.layers.Rescaling(1.0/255, input_shape=rgb_image_shape))
+    model.add(tf.keras.layers.Rescaling(1./255., input_shape=rgb_image_shape))
     model.add(tf.keras.layers.Flatten())
-    model.add(tf.keras.layers.Dense(rgb_pixel_count))
-    model.add(tf.keras.layers.Dense(300))
-    model.add(tf.keras.layers.Dense(350))
-    model.add(tf.keras.layers.Dense(400))
-    model.add(tf.keras.layers.Dense(rgb_pixel_count))
-    model.add(tf.keras.layers.Reshape(rgb_image_shape))
-    model.add(tf.keras.layers.Rescaling(255.0))
+    model.add(tf.keras.layers.Dense(rgb_pixel_count, activation='sigmoid'))
+    model.add(tf.keras.layers.Dense(300, activation='sigmoid'))
+    model.add(tf.keras.layers.Dense(350, activation='sigmoid'))
+    model.add(tf.keras.layers.Dense(400, activation='sigmoid'))
+    model.add(tf.keras.layers.Dense(rgb_pixel_count, activation='sigmoid'))
+    model.add(tf.keras.layers.Reshape(rgb_image_shape, activation='sigmoid'))
+    model.add(tf.keras.layers.Rescaling(255.))
 
     if path:
         print('Getting values from disk...')
