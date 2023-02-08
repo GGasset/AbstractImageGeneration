@@ -30,7 +30,7 @@ def main():
         if is_nn_saved:
             first_prompt += ' (else you will loose the saved network)'
         if is_nn_saved and get_boolean_input(first_prompt):
-            if get_boolean_input('Do you want to show (an) image/s from the nn?'):
+            if get_boolean_input('Do you want to show (an) image/s from the nn instead of training the nn?'):
                 show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
             else:
                 train(model_path, epochs=get_input_int('On how many epochs do you want to train the exiting network?'))
