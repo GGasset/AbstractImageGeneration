@@ -182,7 +182,7 @@ def generate_image(model: tf.keras.Sequential, img: tf.Tensor = None, counter: i
         img = GetGaussianNoise(255. / 2, 255. / 6 / 2, single_rgb_image_shape)
         counter += 1
 
-    img = model.predict(img)
+    img = model.predict(img, use_multiprocessing=True)
     counter += 1
     
     is_final_output = counter >= diffusions_per_image
