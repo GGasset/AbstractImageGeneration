@@ -158,7 +158,7 @@ def generate_model(path: str = None):
     model.add(tf.keras.layers.Dense(350, activation='sigmoid'))
     model.add(tf.keras.layers.Dense(400, activation='sigmoid'))
     model.add(tf.keras.layers.Dense(rgb_pixel_count, activation='sigmoid'))
-    model.add(tf.keras.layers.Reshape(rgb_image_shape, activation='sigmoid'))
+    model.add(tf.keras.layers.Reshape(rgb_image_shape))
     model.add(tf.keras.layers.Rescaling(255.))
 
     if path:
