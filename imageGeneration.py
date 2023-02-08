@@ -25,13 +25,13 @@ def main():
 
     while True:
         is_nn_saved = os.path.isfile(model_path)
-        
+
         first_prompt = 'Do you want to continue with the saved nn?'
         if is_nn_saved:
             first_prompt += ' (else you will loose the saved network)'
         if is_nn_saved and get_boolean_input(first_prompt):
-            if get_boolean_input('Do you want to show an image from the nn?'):
-                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn\'s images as a .gif?'), img_count=get_input_int('How many images do you want to generate'))
+            if get_boolean_input('Do you want to show (an) image/s from the nn?'):
+                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
             else:
                 train(model_path, epochs=get_input_int('On how many epochs do you want to train the exiting network?'))
         else:
@@ -62,7 +62,7 @@ def train(model_path: str = None, epochs: int = 12) -> None:
     print('Gathering images...')
     images = paths.agg(proccess_path)
     print('Generating training data...')
-    std = 255. / diffusions_per_image
+    std = 255. / (diffusions_per_image * 6)
     X, Y = generate_training_data(images, std, diffusions_per_image)
     print('Generating model...')
     model = generate_model(model_path)
@@ -110,7 +110,7 @@ def proccess_path(path: str) -> tf.Tensor:
     img = decode_img(img)
     return img
 
-def img_to_numpy(img: tf.Tensor):
+def tensor_to_numpy(img: tf.Tensor) -> np.ndarray:
     return img.numpy().astype('uint8')
 
 def GetGaussianNoise(mean: tf.Tensor | np.ndarray | float, std: float, shape: tuple, dtype: str = 'uint8') -> tf.Tensor:
@@ -173,7 +173,7 @@ def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: 
     model.fit(x=X, y=Y, batch_size=8, epochs=epochs, use_multiprocessing=True)
     return model
 
-def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, img: tf.Tensor = None, counter: int = 0) -> np.ndarray:
+def generate_image(model: tf.keras.Sequential, img: tf.Tensor = None, counter: int = 0) -> np.ndarray:
     global diffusions_per_image
 
     if img == None:
@@ -182,21 +182,18 @@ def generate_image(model: tf.keras.Sequential, return_as_tensor: bool = True, im
 
     img = model.predict(img)
     counter += 1
-
-    if return_as_tensor:
-        img = tf.convert_to_tensor(img)
-
+    
     is_final_output = counter >= diffusions_per_image
-    is_equal_or_before_second_to_last_output = counter + 1 <= diffusions_per_image
-    return_as_tensor = not is_final_output
     if is_final_output:
+        img = img.reshape(rgb_image_shape)
         return img
     else:
-        return generate_image(model, return_as_tensor=is_equal_or_before_second_to_last_output, img=img, counter=counter)
+        img = tf.convert_to_tensor(img)
+        return generate_image(model, img=img, counter=counter)
 
 def display_img(img: tf.Tensor | np.ndarray, title: str = ''):
     if  type(img) == tf.Tensor:
-        img = img_to_numpy(img)
+        img = tensor_to_numpy(img)
     img = img.reshape(rgb_image_shape)
     plt.title(title)
     plt.imshow(img)
