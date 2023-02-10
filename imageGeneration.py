@@ -175,7 +175,7 @@ def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: 
     model.fit(x=X, y=Y, batch_size=8, epochs=epochs, use_multiprocessing=True)
     return model
 
-def generate_image(model: tf.keras.Sequential, img: tf.Tensor = None, counter: int = 0) -> np.ndarray:
+def generate_image(model: tf.keras.Sequential, img: tf.Tensor | np.ndarray = None, counter: int = 0, dtype: str = 'uint8') -> np.ndarray:
     global diffusions_per_image
 
     if img == None:
@@ -187,7 +187,7 @@ def generate_image(model: tf.keras.Sequential, img: tf.Tensor = None, counter: i
     
     is_final_output = counter >= diffusions_per_image
     if is_final_output:
-        img = img.reshape(rgb_image_shape)
+        img = img.reshape(rgb_image_shape).astype(dtype)
         return img
     else:
         img = tf.convert_to_tensor(img)
