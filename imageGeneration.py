@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from celluloid import Camera
 
 
-sqrt_resolution = 32
+sqrt_resolution = 54
 resolution = (sqrt_resolution, sqrt_resolution)
 rgb_image_shape = (sqrt_resolution, sqrt_resolution, 3)
 single_rgb_image_shape = (1, sqrt_resolution, sqrt_resolution, 3)
@@ -193,6 +193,7 @@ def generate_image(model: tf.keras.Sequential, paths: list[str], std: float, img
     if img == None:
         img = proccess_path(paths[randint(0, len(paths) - 1)])
         img = diffuse_img(img, std)[diffusions_per_image - 1]
+        img = tf.convert_to_tensor(img.numpy().reshape(single_rgb_image_shape))
         counter += 1
 
     img = model.predict(img, use_multiprocessing=True)
