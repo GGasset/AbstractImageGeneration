@@ -1,4 +1,5 @@
 import os
+from random import randint
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -20,10 +21,14 @@ def main():
     global diffusions_per_image
     diffusions_per_image = 50
 
+    std = 255. / (diffusions_per_image * 6)
+
     global model_path, is_nn_saved
     model_path = './nn.hdf5'
 
     epoch_prompt = 'On how many epochs do you want to train the network?'
+    print('Getting paths...')
+    paths = get_image_paths('./images/')
 
     while True:
         is_nn_saved = os.path.isfile(model_path)
@@ -33,19 +38,19 @@ def main():
             first_prompt += ' (else you will loose the saved network)'
         if is_nn_saved and get_boolean_input(first_prompt):
             if get_boolean_input('Do you want to show (an) image/s from the nn instead of training the nn?'):
-                show_generated_images(save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
+                show_generated_images(paths, std, save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
             else:
-                train(model_path, epochs=get_input_int(epoch_prompt))
+                train(paths, std, model_path, epochs=get_input_int(epoch_prompt))
         else:
-            train(epochs=get_input_int(epoch_prompt))
+            train(paths, std, epochs=get_input_int(epoch_prompt))
 
-def show_generated_images(save_instead_of_displaying: bool = True, img_count: int = 1):
+def show_generated_images(paths: list[str], std: float, save_instead_of_displaying: bool = True, img_count: int = 1):
     global model_path
     model = generate_model(model_path)
     fig = plt.figure()
     camera = Camera(fig)
     for i in range(img_count):
-        generated = generate_image(model)
+        generated = generate_image(model, paths, std)
         plt.imshow(generated)
         if save_instead_of_displaying:
             camera.snap()
@@ -56,16 +61,13 @@ def show_generated_images(save_instead_of_displaying: bool = True, img_count: in
         animation = camera.animate()
         animation.save('./GeneratedImages.gif')
 
-def train(model_path: str = None, epochs: int = 12) -> None:
+def train(paths: list[str], std: float, model_path: str = None, epochs: int = 12) -> None:
     global diffusions_per_image
 
-    print('Getting paths...')
-    paths = get_image_paths('./images/')
     print('Gathering images...')
     images = paths.agg(proccess_path)
     print('Generating training data...')
-    std = 255. / (diffusions_per_image * 6)
-    X, Y = generate_training_data(images, std, diffusions_per_image)
+    X, Y = generate_training_data(images, std)
     print('Generating model...')
     model = generate_model(model_path)
     print('Fitting model..')
@@ -127,19 +129,29 @@ def AddGaussianNoise(img: tf.Tensor, std: float) -> tf.Tensor:
     output = GetGaussianNoise(img, std, shape)
     return output
 
-def get_training_data_shape(images: pd.Series, diffusion_count: int) -> tuple[int, int, int, int]:
-    return (len(images) * (diffusion_count - 1), sqrt_resolution, sqrt_resolution, 3)
+def get_training_data_shape(images: pd.Series) -> tuple[int, int, int, int]:
+    global diffusions_per_image
+    return (len(images) * (diffusions_per_image - 1), sqrt_resolution, sqrt_resolution, 3)
 
-def generate_training_data(images: pd.Series, std: float, diffusion_count: int, dtype: str = 'uint8') -> tuple[np.ndarray, np.ndarray]:
-    data_shape = get_training_data_shape(images, diffusion_count)
+def diffuse_img(img: tf.Tensor, std: float) -> list[tf.Tensor]:
+    global diffusions_per_image
+
+    diffusions = []
+    diffusions.append(img)
+    for i in range(diffusions_per_image - 1):
+        diffusions.append(AddGaussianNoise(diffusions[i], std))
+    return diffusions
+
+def generate_training_data(images: pd.Series, std: float, dtype: str = 'uint8') -> tuple[np.ndarray, np.ndarray]:
+    global diffusions_per_image
+
+    data_shape = get_training_data_shape(images)
     X = np.ndarray(data_shape)
     Y = np.ndarray(data_shape)
     counter = 0
     for i, img in enumerate(images):
-        diffusions = []
-        diffusions.append(img)
-        for j in range(diffusion_count - 1):
-            diffusions.append(AddGaussianNoise(diffusions[j], std))
+        diffusions = diffuse_img(img, std)
+        for j in range(diffusions_per_image - 1):
             X[counter] = diffusions[j + 1]
             Y[counter] = diffusions[j]
             counter += 1
@@ -175,11 +187,12 @@ def fit_model(model: tf.keras.Sequential, X: np.ndarray, Y: np.ndarray, epochs: 
     model.fit(x=X, y=Y, batch_size=8, epochs=epochs, use_multiprocessing=True)
     return model
 
-def generate_image(model: tf.keras.Sequential, img: tf.Tensor | np.ndarray = None, counter: int = 0, dtype: str = 'uint8') -> np.ndarray:
+def generate_image(model: tf.keras.Sequential, paths: list[str], std: float, img: tf.Tensor | np.ndarray = None, counter: int = 0, dtype: str = 'uint8') -> np.ndarray:
     global diffusions_per_image
 
     if img == None:
-        img = GetGaussianNoise(255. / 2, 255. / 6 / 2, single_rgb_image_shape)
+        img = proccess_path(paths[randint(0, len(paths) - 1)])
+        img = diffuse_img(img, std)[diffusions_per_image - 1]
         counter += 1
 
     img = model.predict(img, use_multiprocessing=True)
@@ -191,7 +204,7 @@ def generate_image(model: tf.keras.Sequential, img: tf.Tensor | np.ndarray = Non
         return img
     else:
         img = tf.convert_to_tensor(img)
-        return generate_image(model, img=img, counter=counter)
+        return generate_image(model, None, None, img=img, counter=counter)
 
 def display_img(img: tf.Tensor | np.ndarray, title: str = ''):
     if  type(img) == tf.Tensor:
