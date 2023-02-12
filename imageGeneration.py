@@ -123,12 +123,14 @@ def get_current_datetime() -> date.datetime:
 
 def get_input_future_datetime(prompt: str, action: str = 'Train') -> date.datetime:
     print(prompt)
-    days = 10E30
+    days = -1
     while days < 0:
-        days = get_input_int(f'\tFor how many days do you want to {action}', end='')
-    hours = 1E30
+        days = get_input_int(f'\tFor how many days do you want to {action}', end=' ')
+        print()
+    hours = -1
     while hours >= 24 or hours < 0:
-        hours = get_input_int(f'\tFow how many hours do you want to {action}')
+        hours = get_input_int(f'\tFow how many hours do you want to {action}', end=' ')
+        print()
     
     current_date = get_current_datetime()
     to_date = current_date + date.timedelta(days=days, hours=hours)
