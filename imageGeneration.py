@@ -1,5 +1,7 @@
 import os
 from random import randint
+from time import localtime
+import datetime as date
 import tensorflow as tf
 import numpy as np
 import pandas as pd
@@ -7,7 +9,7 @@ import matplotlib.pyplot as plt
 from celluloid import Camera
 
 
-sqrt_resolution = 54
+sqrt_resolution = 32
 resolution = (sqrt_resolution, sqrt_resolution)
 rgb_image_shape = (sqrt_resolution, sqrt_resolution, 3)
 single_rgb_image_shape = (1, sqrt_resolution, sqrt_resolution, 3)
@@ -16,6 +18,7 @@ rgb_pixel_count = sqrt_resolution * sqrt_resolution * 3
 global model_path
 global is_nn_saved
 global diffusions_per_image
+global image_folders
 
 def main():
     global diffusions_per_image
@@ -26,7 +29,6 @@ def main():
     global model_path, is_nn_saved
     model_path = './nn.hdf5'
 
-    epoch_prompt = 'On how many epochs do you want to train the network?'
     print('Getting paths...')
     paths = get_image_paths('./images/')
 
@@ -40,9 +42,9 @@ def main():
             if get_boolean_input('Do you want to show (an) image/s from the nn instead of training the nn?'):
                 show_generated_images(paths, std, save_instead_of_displaying=get_boolean_input('Do you want to save the nn/\'s images as a .gif instead of showing them?'), img_count=get_input_int('How many images do you want to generate?'))
             else:
-                train(paths, std, model_path, epochs=get_input_int(epoch_prompt))
+                train(paths, std, model_path)
         else:
-            train(paths, std, epochs=get_input_int(epoch_prompt))
+            train(paths, std)
 
 def show_generated_images(paths: list[str], std: float, save_instead_of_displaying: bool = True, img_count: int = 1):
     global model_path
@@ -61,8 +63,18 @@ def show_generated_images(paths: list[str], std: float, save_instead_of_displayi
         animation = camera.animate()
         animation.save('./GeneratedImages.gif')
 
-def train(paths: list[str], std: float, model_path: str = None, epochs: int = 12) -> None:
+def train(paths: list[str], std: float, model_path: str = None) -> None:
     global diffusions_per_image
+    
+    to_datetime = get_current_datetime()
+    if get_boolean_input('Do you want to train the network for a specific amount of time?'):
+        to_datetime = get_input_future_datetime('For how much time do you want to train the network?')
+
+    epoch_prompt = 'On how many epochs do you want to train the network?'
+    if to_datetime:
+        epoch_prompt += ' (for each iteration for the epochs until you pass the specified time)'
+    trained_once = False
+    epochs=get_input_int(epoch_prompt)
 
     print('Gathering images...')
     images = paths.agg(proccess_path)
@@ -71,13 +83,15 @@ def train(paths: list[str], std: float, model_path: str = None, epochs: int = 12
     print('Generating model...')
     model = generate_model(model_path)
     print('Fitting model..')
-    model = fit_model(model, X, Y, epochs)
+    while not trained_once or get_current_datetime() < to_datetime:
+        model = fit_model(model, X, Y, epochs)
+        trained_once = True
     print('Saving model...')
     model.save('./nn.hdf5')
 
-def get_input_int(prompt: str) -> int:
+def get_input_int(prompt: str, end='\n') -> int:
     while True:
-        print(prompt)
+        print(prompt, end=end)
         try:
             output = int(input())
             return output
@@ -96,9 +110,35 @@ def get_boolean_input(prompt: str) -> bool:
         successful_input = accepted_answers.__contains__(answer)
     return positive_answers.__contains__(answer)
 
+def get_current_datetime() -> date.datetime:
+    current_time = localtime()
+    current_year = current_time[0]
+    current_month = current_time[1]
+    current_day = current_time[2]
+    current_hour = current_time[3]
+    current_minute = current_time[4]
+    current_date = date.datetime(current_year, current_month, current_day, current_hour, current_minute)
+    return current_date
+
+def get_input_future_datetime(prompt: str, action: str = 'Train') -> date.datetime:
+    print(prompt)
+    days = 10E30
+    while days < 0:
+        days = get_input_int(f'\tFor how many days do you want to {action}', end='')
+    hours = 1E30
+    while hours >= 24 or hours < 0:
+        hours = get_input_int(f'\tFow how many hours do you want to {action}')
+    
+    current_date = get_current_datetime()
+    to_date = current_date + date.timedelta(days=days, hours=hours)
+    return to_date
+
 def get_image_paths(folder_path: str) -> pd.DataFrame:
+    global image_folders
+    image_folders = []
     paths = []
     for folder_path, _, file_paths in os.walk(folder_path):
+        image_folders.append(os.path.basename(folder_path))
         for path in file_paths:
             paths.append(os.path.join(folder_path, path))
 
