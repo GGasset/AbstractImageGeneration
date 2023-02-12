@@ -85,9 +85,10 @@ def train(paths: list[str], std: float, model_path: str = None) -> None:
     print('Fitting model..')
     while not trained_once or get_current_datetime() < to_datetime:
         model = fit_model(model, X, Y, epochs)
+        print('Saving model...')
+        model.save('./nn.hdf5')
+
         trained_once = True
-    print('Saving model...')
-    model.save('./nn.hdf5')
 
 def get_input_int(prompt: str, end='\n') -> int:
     while True:
